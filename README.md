@@ -19,15 +19,13 @@ Paquetes PyQt6 e matplotlib de Python3
 ```shell
     python qt6-ipcalc.py
 ```
+---
 
 ## Cálculo básico
 ![Scheme](Imaxes/basic_info.png)
----
 
 ## Subnetting FLSM
 ![Scheme](Imaxes/sub_flsm.png)
-
----
 
 ## Subnetting VLSM
 ![Scheme](Imaxes/sub_vlsm.png)
