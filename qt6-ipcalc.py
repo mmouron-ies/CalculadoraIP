@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-VERSION="0.6"
+VERSION="0.7"
 
 def ip_to_binary_str(ip: ipaddress._BaseAddress) -> str:
     if isinstance(ip, ipaddress.IPv4Address):
@@ -262,19 +262,19 @@ class IPCalcApp(QMainWindow):
         self.subnets_spin = QSpinBox()
         self.subnets_spin.setRange(1, 2**16)
         self.subnets_spin.setValue(1)
-        self.subnets_spin.valueChanged.connect(self.do_subnetting)
+        self.subnets_spin.valueChanged.connect(self.clear_table)
         top_layout.addRow("Nº subredes:", self.subnets_spin)
 
         self.hosts_spin = QSpinBox()
         self.hosts_spin.setRange(1, 2**24)
         self.hosts_spin.setValue(254)
-        self.hosts_spin.valueChanged.connect(self.do_subnetting)
+        self.hosts_spin.valueChanged.connect(self.clear_table)
         top_layout.addRow("Hosts por subrede:", self.hosts_spin)
 
         self.new_prefix_spin = QSpinBox()
         self.new_prefix_spin.setRange(1, 128)
         self.new_prefix_spin.setValue(24)
-        self.new_prefix_spin.valueChanged.connect(self.do_subnetting)
+        self.new_prefix_spin.valueChanged.connect(self.clear_table)
         top_layout.addRow("Máscara secundaria (/prefixo):", self.new_prefix_spin)
 
         top.setLayout(top_layout)
@@ -283,11 +283,7 @@ class IPCalcApp(QMainWindow):
         subnetmask_info = QGroupBox("Máscara de subrede")
         subnetmask_layout = QFormLayout()
         self.lbl_subnetmask = QLabel("00000000.00000000.00000000.00000000")
-        font = self.lbl_subnetmask.font()
-        font.setPointSize(14)
-        self.lbl_subnetmask.setFont(font)
-        self.lbl_subnetmask.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.lbl_subnetmask.setStyleSheet("color: #c0c0c0;") # Cor gris
+        self.clear_mask()
         subnetmask_layout.addRow(self.lbl_subnetmask)
         subnetmask_info.setLayout(subnetmask_layout)
         layout.addWidget(subnetmask_info)
@@ -321,12 +317,22 @@ class IPCalcApp(QMainWindow):
         return w
 
     def on_mode_changed(self, idx):
+        self.clear_table()
         # Amosamos ou ocultamos as opcións segundo a opción seleccionada no combo (idx)
         self.subnets_spin.setVisible(idx == 0)
         self.hosts_spin.setVisible(idx == 1)
         self.new_prefix_spin.setVisible(idx == 2)
 
+    def clear_mask(self):
+        self.lbl_subnetmask.setText("00000000.00000000.00000000.00000000")
+        font = self.lbl_subnetmask.font()
+        font.setPointSize(14)
+        self.lbl_subnetmask.setFont(font)
+        self.lbl_subnetmask.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.lbl_subnetmask.setStyleSheet("color: #c0c0c0;") # Cor gris
+
     def clear_table(self):
+        self.clear_mask()
         self.table.setRowCount(0)
 
     def add_row(self, rowdata):
