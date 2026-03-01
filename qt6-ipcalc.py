@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt
 
-VERSION="0.7"
+VERSION="0.8"
 
 def ip_to_binary_str(ip: ipaddress._BaseAddress) -> str:
     if isinstance(ip, ipaddress.IPv4Address):
@@ -508,6 +508,7 @@ class IPCalcApp(QMainWindow):
         if not self.vlsm_entries:
             return
         label, spin, row = self.vlsm_entries.pop()
+        self.entry_names.pop()
         for i in reversed(range(row.count())):
             widget = row.itemAt(i).widget()
             if widget: widget.deleteLater()
@@ -521,58 +522,77 @@ class IPCalcApp(QMainWindow):
             QMessageBox.warning(self, "Erro", "Rede base inválida.")
             return
 
-        # 2. Obteer lista de subredes con hosts
+        # 2. Obter lista de subredes con hosts
         if not self.vlsm_entries:
             QMessageBox.warning(self, "Erro", "Engade polo menos unha subrede.")
             return
 
-        requests = []
-        for _, spin, _ in self.vlsm_entries:
+        # Creamos una lista de diccionarios para mantener los datos vinculados
+        data_to_sort = []
+        for i, (_, spin, _) in enumerate(self.vlsm_entries):
             hosts_needed = spin.value()
+            # Calculamos el prefijo necesario para estos hosts
             bits = math.ceil(math.log2(hosts_needed + 2))
             prefix = 32 - bits
-            requests.append((hosts_needed, prefix))
+            # Guardamos el nombre original asociado a su necesidad de hosts
+            data_to_sort.append({
+                'name': self.entry_names[i],
+                'hosts_needed': hosts_needed,
+                'prefix': prefix
+            })
 
-        # 3. Ordenar de maior a menor
-        # requests.sort(reverse=True)
-        # Realmente ordeamos as entradas de número de hosts, pero en paralelo aplicamos a mesma orde a entry_names
-        combined = list(zip(requests, self.entry_names))
-        combined.sort(reverse=True, key=lambda x: x[0])  # Ordena polo primeiro elemento (requests)
-        requests, self.entry_names = zip(*combined) if combined else ([], [])
-        requests = list(requests)  # Convertimos de novo a lista
-        self.entry_names = list(self.entry_names)  # Convertir de novo a lista
+        # 3. Ordenar de maior a menor número de hosts (Crucial para VLSM)
+        data_to_sort.sort(key=lambda x: x['hosts_needed'], reverse=True)
 
         # 4. Asignar subredes consecutivas
-        current = int(base.network_address)
-        max_addr = current + base.num_addresses
+        current_addr = int(base.network_address)
+        max_addr = current_addr + base.num_addresses
 
         results = []
-        for hosts_needed, prefix in requests:
+        sorted_names = []
+
+        for item in data_to_sort:
+            prefix = item['prefix']
             size = 2 ** (32 - prefix)
-            aligned = (current + (size - 1)) & ~(size - 1)
+
+            # Alineación de la dirección (el inicio de la subred debe ser múltiplo de su tamaño)
+            aligned = (current_addr + (size - 1)) & ~(size - 1)
+
             if aligned + size > max_addr:
-                QMessageBox.critical(self, "Erro", "As subredes non caben na rede base.")
+                QMessageBox.critical(self, "Erro", f"As subredes son demasiado grandes para a rede base.\n"
+                                                   f"Non se puido asignar {item['name']} ({item['hosts_needed']} hosts).")
                 return
+
             net = ipaddress.ip_network((aligned, prefix))
             results.append(net)
-            current = aligned + size
+            sorted_names.append(item['name'])
+            current_addr = aligned + size
 
         # 5. Amosar resultados na táboa
         self.vlsm_table.setRowCount(0)
         for i, s in enumerate(results):
-            subnet_name = self.entry_names[i]
             total = s.num_addresses
             usable = total - 2 if total > 2 else 0
             hosts = list(s.hosts()) if usable > 0 else []
             rng = f'{hosts[0]} - {hosts[-1]}' if hosts else "-"
-            row = [f'{subnet_name}',
-                   f'{s}', f'/{s.prefixlen}', str(s.netmask), rng, str(s.broadcast_address), str(usable)]
+
+            row_data = [
+                sorted_names[i],
+                str(s.network_address),
+                f'/{s.prefixlen}',
+                str(s.netmask),
+                rng,
+                str(s.broadcast_address),
+                str(usable)
+            ]
+
             r = self.vlsm_table.rowCount()
             self.vlsm_table.insertRow(r)
-            for c, v in enumerate(row): self.vlsm_table.setItem(r, c, QTableWidgetItem(v))
+            for c, v in enumerate(row_data):
+                self.vlsm_table.setItem(r, c, QTableWidgetItem(v))
 
         # 6. Debuxar gráfico VLSM
-        self.vlsm_graph.draw_subnets(results,names=self.entry_names)
+        self.vlsm_graph.draw_subnets(results, names=sorted_names)
 
 def main():
     app = QApplication(sys.argv)
